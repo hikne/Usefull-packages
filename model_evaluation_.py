@@ -164,7 +164,10 @@ class model_eval:
         #            plot ROC curve                 #
         #-------------------------------------------#
         # compute probabilities
-        score = self.clf.predict_proba(X)
+        if hasattr(self.clf,'predict_proba'):
+            score = self.clf.predict_proba(X)
+        else:
+            score=self.clf.decision_function(X)
         # check if it's a binary classification
         if roc_curve:
             assert len(np.unique(y))==2, ('ROC curve is valid only for binary classification')

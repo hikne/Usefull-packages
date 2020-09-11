@@ -80,11 +80,6 @@ class modelSelection:
        
         
         """    
-        
-        X_train, _, y_train, _ = train_test_split(data[self.features], data[self.target], 
-                                                         test_size=self.test_size, random_state=self.random_state)
-        
-        
         ############################
         # Construct some pipelines #
         ############################
@@ -468,7 +463,7 @@ class modelSelection:
         colors = [training_color, test_color]
         
         # Set figure size and create barplot
-        f, ax = plt.subplots(figsize=(12, 9))
+        _, ax = plt.subplots(figsize=(12, 9))
         
         sns.barplot(x="AUC", y="Classifier", hue="AUC Type", palette = colors,
                     data=auc_scores)

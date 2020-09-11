@@ -141,8 +141,10 @@ class model_eval:
         cm = metrics.confusion_matrix(y,y_pred)
         # if asked normalize confusion matrix
         if norm!=None:
-            normax=['pred','true']
-            cm = np.round(100*cm.astype('float') / cm.sum(axis=normax.index(norm))[:, np.newaxis],2)
+            if norm=='true':
+                cm = np.round(100*cm.astype('float') / cm.sum(axis=1)[:, np.newaxis],2)
+            elif norm=="pred":
+                cm = np.round(100*cm.astype('float') / cm.sum(axis=0)[np.newaxis,:],2)
 
         ax[0].imshow(cm, cmap="Wistia")
         ax[0].set_title('confusion matrix')

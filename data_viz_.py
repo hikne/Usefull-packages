@@ -15,7 +15,7 @@ import pandas as pd, numpy as np
 #from dataiku import pandasutils as pdu
 import matplotlib.pyplot as plt
 import seaborn as sns
-plt.style.use('ggplot')
+plt.style.use('default')
 from scipy.stats import skew
 from itertools import product
 from scipy.stats import ks_2samp

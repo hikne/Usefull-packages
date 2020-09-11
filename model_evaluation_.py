@@ -68,8 +68,7 @@ class model_eval:
         """
         plt.style.use('default')
         np.set_printoptions(precision=2)
-        metrics.plot_confusion_matrix(self.clf, X, y, labels=labels, normalize=normalize,
-                                      cmap=plt.cm.Blues,xticks_rotation=90)
+        metrics.plot_confusion_matrix(self.clf, X, y, labels=labels, normalize=normalize,cmap="Blues",xticks_rotation=90)
     
     def roc_curve(self,X,y):
         """
@@ -126,7 +125,7 @@ class model_eval:
         y_pred=self.clf.predict(X)
         print(f'{42*"_"}    Classification report     {42*"_"}')
         print(metrics.classification_report(y,y_pred ))
-        print(":::::::::: F-2 score : ",metrics.fbeta_score(y,y_pred,beta,average='weighted'))
+        print(":::::::::: F-2 score : ",metrics.fbeta_score(y,y_pred,beta=beta,average='weighted'))
         # compute kappa
         if kappa:
             qk=self.quadratic_kappa(y, y_pred,w)
@@ -145,7 +144,7 @@ class model_eval:
             normax=['pred','true']
             cm = np.round(100*cm.astype('float') / cm.sum(axis=normax.index(norm))[:, np.newaxis],2)
 
-        ax[0].imshow(cm, cmap=plt.cm.Wistia)
+        ax[0].imshow(cm, cmap="Wistia")
         ax[0].set_title('confusion matrix')
         ax[0].set_ylabel('True label')
         ax[0].set_xlabel('Predicted label')

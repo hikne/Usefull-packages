@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Created on Wed Mar 18 12:33:09 2020
+Created on Wed Mar 31 09:43:09 2020
 
 @author: hikne
 """
@@ -11,7 +11,7 @@ import numpy as np
 import pandas as pd 
 from sklearn import metrics 
 from IPython.display import display 
-
+import sys
 
 class model_eval:
     def __init__(self,model,class_names):
@@ -68,7 +68,8 @@ class model_eval:
         """
         plt.style.use('default')
         np.set_printoptions(precision=2)
-        metrics.plot_confusion_matrix(self.clf, X, y, labels=labels, normalize=normalize,cmap="Blues",xticks_rotation=90)
+        metrics.plot_confusion_matrix(self.clf, X, y, labels=labels, normalize=normalize,
+                                      cmap=plt.cm.Blues,xticks_rotation=90)
     
     def roc_curve(self,X,y):
         """
@@ -122,14 +123,21 @@ class model_eval:
         #-------------------------------------------#
         #      print classification report          #
         #-------------------------------------------#
+        plt.style.use('default')
+        
         y_pred=self.clf.predict(X)
+        
         print(f'{42*"_"}    Classification report     {42*"_"}')
         print(metrics.classification_report(y,y_pred ))
-        print(":::::::::: F-2 score : ",metrics.fbeta_score(y,y_pred,beta=beta,average='weighted'))
+        
+        fbscore=metrics.fbeta_score(y,y_pred,beta,average='weighted')
+        print(f":::::::::: F-{beta} score : {fbscore}")
+        
         # compute kappa
         if kappa:
             qk=self.quadratic_kappa(y, y_pred,w)
             print(':::::::::: QWE= ',qk)
+            
         # show confusion matrix, ROC curve and probability chart
         print(f'{42*"_"}         Visual report        {42*"_"}') 
         n_charts=1+roc_curve+proba_chart
@@ -141,12 +149,10 @@ class model_eval:
         cm = metrics.confusion_matrix(y,y_pred)
         # if asked normalize confusion matrix
         if norm!=None:
-            if norm=='true':
-                cm = np.round(100*cm.astype('float') / cm.sum(axis=1)[:, np.newaxis],2)
-            elif norm=="pred":
-                cm = np.round(100*cm.astype('float') / cm.sum(axis=0)[np.newaxis,:],2)
+            normax=['pred','true']
+            cm = np.round(100*cm.astype('float') / cm.sum(axis=normax.index(norm))[:, np.newaxis],2)
 
-        ax[0].imshow(cm, cmap="Wistia")
+        ax[0].imshow(cm, cmap=plt.cm.Wistia)
         ax[0].set_title('confusion matrix')
         ax[0].set_ylabel('True label')
         ax[0].set_xlabel('Predicted label')
@@ -157,7 +163,7 @@ class model_eval:
         ax[0].set_yticklabels(self.class_names)
         for i in range(len(self.class_names)):
             for j in range(len(self.class_names)):
-                ax[0].text(j,i,str(cm[i][j]))
+                ax[0].text(j-.2,i,str(cm[i][j]))
         ax[0].grid(False)
 
         #
@@ -168,7 +174,8 @@ class model_eval:
         if hasattr(self.clf,'predict_proba'):
             score = self.clf.predict_proba(X)
         else:
-            score=self.clf.decision_function(X)
+            score=clf.decision_function(X)
+            
         # check if it's a binary classification
         if roc_curve:
             assert len(np.unique(y))==2, ('ROC curve is valid only for binary classification')
@@ -180,6 +187,7 @@ class model_eval:
             ax[1].set_xlabel("P(FP)")
             ax[1].set_ylabel("P(TP)")
             ax[1].legend()
+            
         #-------------------------------------------#
         #    plot probability distribution chart    #
         #-------------------------------------------#
@@ -188,12 +196,14 @@ class model_eval:
                 positive_class=int(max(y))
             # we assume that ROC curve is displayed -> probability chart is the 3rd chart (i.e subplot index==2)
             chart_idx=2
+            
             # if ROC is not requested then proability chart index ==1
             if n_charts!=3:
                 chart_idx=1
             ax[chart_idx].hist(score[y!=positive_class,positive_class],bins=50, label='Negative class',alpha=.7, color='blue',density=True)
             ax[chart_idx].hist(score[y==positive_class,positive_class],bins=50, label='Postive class',alpha=.7 ,color='orange',density=True)
             ax[chart_idx].set_title('postive class probabilities distribution')
+            
             # display .5 boundary
             ymax=max(max(np.histogram(score[y!=positive_class,positive_class],bins=50,density=True)[0]),
                     max(np.histogram(score[y==positive_class,positive_class],bins=50,density=True)[0]))+1
@@ -205,11 +215,67 @@ class model_eval:
         #-------------------------------------------#
         #             Additional metrics            #
         #-------------------------------------------#
-        print(f'{42*"_"} Accuracy confidence interval {42*"_"}')  
+        print(f'{42*"_"} F{beta} score confidence interval {42*"_"}')  
         n=len(y)
         conf_int=lambda alpha,n,e:[e-alpha*np.sqrt(e*(1-e)/n),e+alpha*np.sqrt(e*(1-e)/n)]
         ###
-        confid_int=pd.DataFrame(np.array([conf_int(alp,n,metrics.accuracy_score(y,y_pred)) for alp in [1.64,1.96,2.33,2.58]]))
+        confid_int=pd.DataFrame(np.array([conf_int(alp,n,fbscore) for alp in [1.64,1.96,2.33,2.58]]))
         confid_int.columns=['min','max']
         confid_int.index=['90%','95%','98%','99%']
         display(confid_int) 
+
+    def percentage_by_range(self,X,y,classIdx):
+        # probabilité de la classe 0 (NO MOVER / SLOW MOVER)
+        if hasattr(self.clf,'predict_proba'):
+            score = self.clf.predict_proba(X)[:,classIdx]
+        else:
+            score=clf.decision_function(X)[:,classIdx]
+            
+        #
+        res=pd.DataFrame({'score':score,'true label':y})
+        # score range
+        res['range']=pd.cut(res['score'],bins=np.linspace(0,1,11)).astype('object')
+        
+        ## effectif par classe en fonction du range de score
+        out=pd.crosstab(res['range'],res['true label']).reset_index()
+                
+        # normaliser les chiffres
+        out.rename(columns={i:self.class_names[i] for i in range(len(self.class_names))},inplace=True)
+        #
+        out['Total']=out[self.class_names].sum(axis=1)
+        out['Total']=round(100*out['Total']/out['Total'].sum(),2)
+        #
+        out[self.class_names]=out[self.class_names].apply(lambda x:round(100*x/x.sum(),2),axis=1)
+        #
+        out.index=out['range']
+        out.drop(columns=['range'],inplace=True)
+        #
+        display(out.style.format({col: "{:20,.0f}%" for col in out.columns}).set_properties(**{'color': 'white'}
+                                                      ,subset=[self.class_names[classIdx]]).background_gradient(cmap='brg',subset=[self.class_names[classIdx]]))
+        #return out[['range']+self.class_names+['(%) tot']].reset_index(drop=True)
+    
+        
+    def feature_influence(self,features,nb=-1,figsize=(12,10)):
+        """
+        @ Description: This function displyas 'nb' most influent in the model decision.
+        @ Input:
+                +> features: [List] feature list.
+                +> nb: [Integer] number of features to display (default=-1, i.e display all).
+        @ Output: [Figure]
+        """
+        if hasattr(self.clf,'feature_importances_'):
+            feature_imp=self.clf.feature_importances_
+        elif hasattr(self.clf,'coef_'):
+            feature_imp=self.clf.coef_
+        else:
+            sys.exit()
+            
+        # reshape feature importances
+        feature_imp=feature_imp.reshape(-1,)
+        
+        imp_=pd.DataFrame({'feature':features,'importance':feature_imp},index=range(len(features))).sort_values(by=['importance'],ascending=True)
+        if nb==-1:
+            nb=20
+            
+        imp_.iloc[:nb,:].plot.barh(x='feature',y='importance',color='lightblue',edgecolor= 'blue',linestyle='-',figsize=figsize)
+        plt.show()

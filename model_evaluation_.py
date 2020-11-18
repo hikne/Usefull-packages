@@ -12,6 +12,9 @@ import pandas as pd
 from sklearn import metrics 
 from IPython.display import display 
 import sys
+from joblib import dump
+import json
+import os
 
 class model_eval:
     def __init__(self,model,class_names):
@@ -279,3 +282,16 @@ class model_eval:
             
         imp_.iloc[:nb,:].plot.barh(x='feature',y='importance',color='lightblue',edgecolor= 'blue',linestyle='-',figsize=figsize)
         plt.show()
+    
+    def save_model(self,features,dir_path,model_name):
+        # save joblib file
+        dump(model,os.path.join(dir_path,f'{model_name}.joblib'))
+        # save feature importance if available, Otherwise just feature names
+        if hasattr(self.model,'feature_importances_'):
+            #
+            #
+            with open(os.path.join(dir_path,f'{model_name}_feature_imp.txt'), 'w') as outfile:
+                json.dump(feat_imp, dict(zip(features,[str(f) for f in self.model.feature_importances_])))
+
+        print('done!')
+

@@ -84,7 +84,7 @@ def displayDist(df,features,target,kind='box'):
     if kind=='box':
         for i,col in enumerate(features,start=1):
             plt.subplot(3,3,i)
-            sns.boxplot(x=target,y=col,data=df)
+            sns.boxplot(x=target,y=col,data=df,showfliers=False)
     else:
         features=np.random.choice(a=features,replace=False,size=4)
         sns.pairplot(df[list(features)+[target]], hue=target)
@@ -138,7 +138,7 @@ def feature_target_correlation(data,features,target='label',tresh=.1):
 #------------------------------------------#        
     
 def plotPie(df,col,target='SALES_ORGANIZATION_CODE'):
-    print('corr {}* Y {}'.format(col,round(np.corrcoef(df[col],df["Y"])[0,1],4)))
+    #print('corr {}* Y {}'.format(col,round(np.corrcoef(df[col],df["Y"])[0,1],4)))
     plt.style.use('default')
     plt.figure(figsize=(9,5))
     for i,vk in enumerate(df[target].unique(),start=1):
@@ -158,7 +158,7 @@ def plotPie(df,col,target='SALES_ORGANIZATION_CODE'):
   
     
     
-def FeatSubDistance(df,col,t=None,e=1,scale=False):
+def FeatSubDistance(df,x,col,t=None,e=1,scale=False,show_matrix=True,return_d=False):
     # transformations
     def slog(x,e=1):
         if abs(x+e)<1:
@@ -169,15 +169,17 @@ def FeatSubDistance(df,col,t=None,e=1,scale=False):
         'log':lambda x,e:np.log(x+e),
         'log10':lambda x,e:np.log10(x+e),
         'root':lambda x,e:pow(x,1/e),
-        'inv':lambda x,e,:1/(abs(x)**e+1)}
+        'tanh':lambda x,e:np.tanh(x*e), 
+        'bin':lambda x,e:1 if x>e else 0,
+        'inv':lambda x,e:1/(abs(x)**e+1)}
     # sample size
-    size=df['SALES_ORGANIZATION_CODE'].value_counts().min()
+    size=max(df[x].value_counts().min(),100)
     dfu=pd.DataFrame([])
     #------------
     # transform & scale data
     #-------------------
-    for vk in df['SALES_ORGANIZATION_CODE'].unique():
-        dfx=df.loc[df['SALES_ORGANIZATION_CODE']==vk,['SALES_ORGANIZATION_CODE',col]].copy().sample(n=size)
+    for vk in df[x].unique():
+        dfx=df.loc[df[x]==vk,[x,col]].copy().sample(n=size)
         # if requested -> make transfomration 
         if t!=None:
             dfx[col]=dfx[col].apply(transf[t],e=e).to_frame(col)
@@ -188,25 +190,57 @@ def FeatSubDistance(df,col,t=None,e=1,scale=False):
     #-------------
     # compute 
     #-------------
-    vks=sorted(dfu['SALES_ORGANIZATION_CODE'].unique().tolist())
+    vks=sorted(dfu[x].unique().tolist())
     d=np.eye(len(vks))
     for vk1,vk2 in product(vks,vks):
-        d[vks.index(vk1),vks.index(vk2)]=ks_2samp(dfu.loc[dfu['SALES_ORGANIZATION_CODE']==vk1,col],dfu.loc[dfu['SALES_ORGANIZATION_CODE']==vk2,col])[0]
+        d[vks.index(vk1),vks.index(vk2)]=ks_2samp(dfu.loc[dfu[x]==vk1,col],dfu.loc[dfu[x]==vk2,col])[0]
     #-----------
     # plot distance matrix
     #-----------
-    plt.figure(figsize=(7,5)) 
-    h=plt.pcolor(d,)
-    plt.xticks(.5+np.arange(len(vks)),vks)
-    plt.yticks(.5+np.arange(len(vks)),vks)  
-    ## add text to heatmap
-    for y in range(d.shape[0]):
-        for x in range(d.shape[1]):
-            plt.text(x + 0.5, y + 0.5, '%.2f' % d[y, x],
-                     horizontalalignment='center',
-                     verticalalignment='center',
-                     )
-    plt.colorbar(h)
-    plt.title(f'{col} distribution distance [t={t},e={e}]')
-    plt.tight_layout()
-    plt.show()
+    if show_matrix:
+        plt.figure(figsize=(7,5)) 
+        h=plt.pcolor(d,)
+        plt.xticks(.5+np.arange(len(vks)),vks)
+        plt.yticks(.5+np.arange(len(vks)),vks)  
+        ## add text to heatmap
+        for y in range(d.shape[0]):
+            for x in range(d.shape[1]):
+                plt.text(x + 0.5, y + 0.5, '%.2f' % d[y, x],
+                        horizontalalignment='center',
+                        verticalalignment='center',
+                        )
+        plt.colorbar(h)
+        plt.title(f'{col} distribution distance [t={t},e={e}]')
+        plt.tight_layout()
+        plt.show()
+    if return_d:
+        return d
+
+def filter_corr_feat(df,features,treshold=.95):
+    """
+    @ Description: determine a group of features that have a correlation coefficient greater than a given treshold (default=0.95),
+    From each group of correlated features, we will select one of them and discard the rest.
+    @ Input:
+            +> df: [DatFrame] dataset.
+            +> features: [List] feature list.
+            +> corr_tresh: [Float] .
+    @ Output: 
+            +> to_drop:[List] feature most correlated with the others.
+    """
+    # Filter Method: Spearman's Cross Correlation > treshold (ex: 0.95 )
+    # Make correlation matrix
+    corr_matrix = df[features].corr(method = "spearman").abs()
+
+    # Draw the heatmap
+    sns.set(font_scale = 1.0)
+    f, ax = plt.subplots(figsize=(11, 9))
+    sns.heatmap(corr_matrix, cmap= "coolwarm", square=True, ax = ax)
+    f.tight_layout()
+    #plt.savefig("correlation_matrix.png", dpi = 1080)
+
+    # Select upper triangle of matrix
+    upper = corr_matrix.where(np.triu(np.ones(corr_matrix.shape), k = 1).astype(np.bool))
+
+    # Find index of feature columns with correlation greater than treshold
+    to_drop = [column for column in upper.columns if any(upper[column] > treshold)]
+    return to_drop

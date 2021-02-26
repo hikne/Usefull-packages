@@ -39,7 +39,7 @@ from sklearn.tree import ExtraTreeClassifier
 ## save the model
 from joblib import dump
 import json
-
+from datetime import datetime
 
 
 class modelSelection:
@@ -86,18 +86,18 @@ class modelSelection:
         # linear models
         if self.task=='classification':
             Pipe_mod ={}
-            Pipe_mod['Logistic Regression'] = Pipeline([('scl', StandardScaler()),('clf', LogisticRegression(penalty='l2',random_state=42,n_jobs=-1))])
+            Pipe_mod['L Reg.'] = Pipeline([('scl', StandardScaler()),('clf', LogisticRegression(penalty='l2',random_state=42,n_jobs=-1))])
             Pipe_mod['LDA'] = Pipeline([('scl', StandardScaler()),('clf', LinearDiscriminantAnalysis())])
             Pipe_mod['QDA']=  Pipeline([('scl', StandardScaler()),('clf', QuadraticDiscriminantAnalysis())])  
             Pipe_mod['SGD'] = Pipeline([('scl', StandardScaler()),('clf',SGDClassifier(random_state=42))])
             
             # tree based models
-            Pipe_mod['Random Forest '] = Pipeline([('clf', RandomForestClassifier(n_estimators=400,max_depth=15,random_state=42))])
+            Pipe_mod['R For. '] = Pipeline([('clf', RandomForestClassifier(n_estimators=400,max_depth=11,random_state=42))])
             Pipe_mod['AdaBoost'] = Pipeline([('clf', AdaBoostClassifier(n_estimators=250,learning_rate=.01,random_state=42))])				
-            Pipe_mod['XGB']= Pipeline([('clf', XGBClassifier(n_estimators=150,max_depth=15,random_state=42))])
+            Pipe_mod['XGB']= Pipeline([('clf', XGBClassifier(n_estimators=150,max_depth=11,random_state=42))])
             ## gardient boosted
             
-            Pipe_mod['GB']= Pipeline([('clf', GradientBoostingClassifier(n_estimators=250,max_depth=7,random_state=42))])
+            #Pipe_mod['GB']= Pipeline([('clf', GradientBoostingClassifier(n_estimators=250,max_depth=11,random_state=42))])
             # generative models
             Pipe_mod['GNB']= Pipeline([('clf', GaussianNB())])
             
@@ -113,12 +113,12 @@ class modelSelection:
         	
         elif self.task=='regression':
             Pipe_mod ={}
-            Pipe_mod['Bayesian Regression'] = Pipeline([('scl', StandardScaler()),('clf', BayesianRidge())])
-            Pipe_mod['Linear Regression'] = Pipeline([('clf', LinearRegression(fit_intercept=True))])
+            Pipe_mod['Bayesian Reg.'] = Pipeline([('scl', StandardScaler()),('clf', BayesianRidge())])
+            #Pipe_mod['Linear Reg.'] = Pipeline([('clf', LinearRegression(fit_intercept=True))])
             Pipe_mod['Lars']=  Pipeline([('scl', StandardScaler()),('clf', Lars(n_nonzero_coefs=1))])  
-            Pipe_mod['SGD'] = Pipeline([('scl', StandardScaler()),('clf',SGDRegressor(max_iter=1000, tol=1e-3))])
+            #Pipe_mod['SGD'] = Pipeline([('scl', StandardScaler()),('clf',SGDRegressor(max_iter=1000, tol=1e-3))])
             # tree based models
-            Pipe_mod['Random Forest '] = Pipeline([('clf', RandomForestRegressor(n_estimators=400,max_depth=15,random_state=42))])
+            Pipe_mod['R For.'] = Pipeline([('clf', RandomForestRegressor(n_estimators=400,max_depth=15,random_state=42))])
             Pipe_mod['AdaBoost'] = Pipeline([('clf', AdaBoostRegressor(n_estimators=250,learning_rate=.001,random_state=42))])				
             Pipe_mod['XGB']= Pipeline([('clf', XGBRegressor(n_estimators=150,max_depth=15,random_state=42,objective='reg:squarederror'))])
             ## gardient boosted
@@ -139,21 +139,26 @@ class modelSelection:
         # compute cross_val scores #
         ############################
         kfold = model_selection.KFold(n_splits=self.cv, random_state=self.random_state)
-        results = []
-        names = []
+        res = pd.DataFrame([])
+        #
         X,y=data[self.features].copy(),data[self.target].copy()
+        #
         for name, model in Pipe_mod.items():
+            #
+            print("Running process: {} fitting ...".format(name))
+            print("Starting time : {}".format(datetime.now()))
             cv_results = model_selection.cross_val_score(model, X, y, cv=kfold, scoring=self.score)
-            results.append(cv_results)
-            names.append(name)
+            #
+            res[name]=cv_results
+            #
             msg = "%s %s : %f (+/- %f)" % (name,self.score, cv_results.mean(), cv_results.std())
             print(msg)
-        
+            print()
         	## boxplot algorithm comparison
-        plt.figure(figsize=(8,5))
-        chart=sns.boxplot(x=names,y=results)
-        plt.title('Algorithm benchmark')
-        chart.set_xticklabels(chart.get_xticklabels(), rotation=45, horizontalalignment='right')
+        #
+        plt.figure(figsize=(10,5))
+        plt.boxplot(x=res.T,labels=res.columns)
+        plt.title('Algo benchmark')
         plt.show()
         
         
@@ -481,16 +486,5 @@ class modelSelection:
             display(auc_scores.sort_values(by='AUC'))
         # Save Figure
         #plt.savefig("AUC Scores.png", dpi = 1080)
-        
-    #--------------------------------------------------------------------------
-    def save_model(self,model,DirPath,modName):
-        ## save model
-        dump(model, f'{DirPath}{modName}.joblib')
-        ## save feature importances
-        feat_imp={self.features[i]:str(model.feature_importances_[i]) for i in range(len(self.features))}
-        with open(f'{DirPath}{modName}_feature_imp.txt', 'w') as outfile:
-            json.dump(feat_imp, outfile)
-        print('done!')
-                
                 
                 

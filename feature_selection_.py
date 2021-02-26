@@ -175,35 +175,40 @@ class FeatureSelector:
             features          - Required  : features list (List)
             cv                - Optional  : cross-validation number of folds (Int) [default='accuracy']
             score             - Optional  : scoring method (Str)
-            score_pen_tresh   - Optional  : score treshold of penality (Float) [default=None]
+            score_pen_tresh   - Optional  : score threshold of penality (Float) [default=None]
         """
         ## initialize Kfolds for cross-validation
         kfold = model_selection.KFold(n_splits=cv, random_state=42)
         ## compute model scores for each randomdly drawn sample of features
         # set feature scores to 0.0
         scores={col:0.0 for col in features}
-        #clf=DecisionTreeClassifier(**tree_params)
+        
         for i in range(self.nbIter):
             ## draw a features subsample 
-            sub_feat=np.random.choice(a=features,size=np.random.randint(low=5,high=self.nbmax_feat),replace=False)
+            sub_feat = np.random.choice(a=features,size=np.random.randint(low=5,high=self.nbmax_feat),replace=False)
             ## compute cross validation score mean
-            cross_val= model_selection.cross_validate(self.model, data[sub_feat],data[target], cv=kfold, scoring=score,n_jobs=-1,return_estimator=True)
-            sco=cross_val['test_score'].mean()
-            feature_importances=np.array([estimator.feature_importances_ for estimator in cross_val['estimator']]).mean(axis=0)
+            cross_val = model_selection.cross_validate(self.model, data[sub_feat],data[target], cv=kfold, scoring=score,n_jobs=-1,return_estimator=True)
+            #
+            sco = cross_val['test_score'].mean()
+            #
+            feature_importances = np.array([estimator.feature_importances_ for estimator in cross_val['estimator']]).mean(axis=0)
+
             ## if the score is less than "score_pen_tresh" , then the subsample features gets a penalty instead of a reward
-            if score_pen_tresh!=None:
+            if score_pen_tresh != None:
                 if sco<score_pen_tresh:
-                    ## the penalty is measured with the distance to the treshold 
-                    sco=score_pen_tresh-sco
+                    ## the penalty is measured with the distance to the threshold 
+                    sco = abs(score_pen_tresh-sco)
+                    
             ## update concerned features scores
             for j in range(len(sub_feat)):
-                scores[sub_feat[j]]+=sco*feature_importances[j] ## the reward/penalty is proportional to feature importnace
+                scores[sub_feat[j]] += sco*feature_importances[j] ## the reward/penalty is proportional to feature importnace
             ## print progress
-            self.printProgressBar(i + 1, self.nbIter, prefix = 'job running: feature importance - feature selection process ')   
-        scores=pd.DataFrame(list(scores.values()),columns=['score'],index=list(scores.keys()))
-        scores['score']/=scores['score'].sum()
+            self.printProgressBar(i + 1, self.nbIter, prefix = 'job running: feature importance - feature selection process ')
+
+        scores = pd.DataFrame(list(scores.values()),columns=['score'],index=list(scores.keys()))
+        scores['score'] /= scores['score'].sum()
         scores.sort_values(by='score',ascending=False,inplace=True)
-        scores['cum_score']=scores['score'].cumsum()
+        scores['cum_score'] = scores['score'].cumsum()
         ## display  scores distribution
         plt.figure(figsize=(10,5))
         plt.bar(range(1,scores.shape[0]+1),scores['cum_score'])

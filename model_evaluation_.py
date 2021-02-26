@@ -133,7 +133,7 @@ class model_eval:
         print(f'{42*"_"}    Classification report     {42*"_"}')
         print(metrics.classification_report(y,y_pred ))
         
-        fbscore=metrics.fbeta_score(y,y_pred,beta,average='weighted')
+        fbscore = metrics.fbeta_score(y,y_pred,beta,average='macro')
         print(f":::::::::: F-{beta} score : {fbscore}")
         
         # compute kappa
@@ -204,8 +204,8 @@ class model_eval:
             if n_charts!=3:
                 chart_idx=1
             ax[chart_idx].hist(score[y!=positive_class,positive_class],bins=50, label='Negative class',alpha=.7, color='blue',density=True)
-            ax[chart_idx].hist(score[y==positive_class,positive_class],bins=50, label='Postive class',alpha=.7 ,color='orange',density=True)
-            ax[chart_idx].set_title('postive class probabilities distribution')
+            ax[chart_idx].hist(score[y==positive_class,positive_class],bins=50, label='Positive class',alpha=.7 ,color='orange',density=True)
+            ax[chart_idx].set_title("positive class's distribution of probability")
             
             # display .5 boundary
             ymax=max(max(np.histogram(score[y!=positive_class,positive_class],bins=50,density=True)[0]),
@@ -222,10 +222,16 @@ class model_eval:
         n=len(y)
         conf_int=lambda alpha,n,e:[e-alpha*np.sqrt(e*(1-e)/n),e+alpha*np.sqrt(e*(1-e)/n)]
         ###
-        confid_int=pd.DataFrame(np.array([conf_int(alp,n,fbscore) for alp in [1.64,1.96,2.33,2.58]]))
-        confid_int.columns=['min','max']
-        confid_int.index=['90%','95%','98%','99%']
-        display(confid_int) 
+        cf=np.array([conf_int(alp,n,fbscore) for alp in [1.64,1.96,2.33,2.58]])
+
+        string = f"+{51*'-'}+\n| confidence level | Lower endpoint | Uper endpoint |\n+{51*'-'}+\n"
+        string+=f"|        90%       |      {np.round(cf[0,0],2)}      |      {np.round(cf[0,1],2)}     |\n"
+        string+=f"|        95%       |      {np.round(cf[1,0],2)}      |      {np.round(cf[1,1],2)}     |\n"
+        string+=f"|        98%       |      {np.round(cf[2,0],2)}      |      {np.round(cf[2,1],2)}     |\n"
+        string+=f"|        99%       |      {np.round(cf[3,0],2)}      |      {np.round(cf[3,1],2)}     |\n"
+        string+=f"+{51*'-'}+"
+
+        print(string) 
 
     def percentage_by_range(self,X,y,classIdx):
         # probabilité de la classe 0 (NO MOVER / SLOW MOVER)
@@ -282,16 +288,19 @@ class model_eval:
             
         imp_.iloc[:nb,:].plot.barh(x='feature',y='importance',color='lightblue',edgecolor= 'blue',linestyle='-',figsize=figsize)
         plt.show()
+
     
     def save_model(self,features,dir_path,model_name):
         # save joblib file
-        dump(model,os.path.join(dir_path,f'{model_name}.joblib'))
+        dump(self.clf,os.path.join(dir_path,f'{model_name}.joblib'))
         # save feature importance if available, Otherwise just feature names
-        if hasattr(self.model,'feature_importances_'):
-            #
+        if hasattr(self.clf,'feature_importances_'):
             #
             with open(os.path.join(dir_path,f'{model_name}_feature_imp.txt'), 'w') as outfile:
-                json.dump(feat_imp, dict(zip(features,[str(f) for f in self.model.feature_importances_])))
+                json.dump(dict(zip(features,[str(f) for f in self.clf.feature_importances_])),outfile)
+        else:
+            with open(os.path.join(dir_path,f'{model_name}_feature_imp.txt'), 'w') as outfile:
+                json.dump(dict(zip(features,['' for f in features])),outfile)
 
         print('done!')
 
